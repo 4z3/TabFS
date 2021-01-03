@@ -4,20 +4,30 @@ set -efu
 # allow wrapper to find tabfs executable
 PATH=$(dirname "$0")${PATH:+:$PATH}
 
+if test -n "${TABFS_MOUNTPOINT-}"; then
+  mountpoint=$TABFS_MOUNTPOINT
+elif test -n "${XDG_RUNTIME_DIR-}"; then
+  mountpoint=$XDG_RUNTIME_DIR/tabfs/mnt
+elif test -n "${HOME-}"; then
+  mountpoint=$HOME/.tabfs/mnt
+else
+  mountpoint=mnt
+fi
+
 pgrep tabfs | grep -v ^$$\$ | xargs kill -9 2>/dev/null || :
 
 OS=$(uname -s)
 case $OS in
   Darwin)
-    diskutil umount force mnt >/dev/null || :
+    diskutil umount force "$mountpoint" >/dev/null || :
     extraArgs=
     ;;
   FreeBSD)
-    umount -f mnt 2>/dev/null || :
+    umount -f "$mountpoint" 2>/dev/null || :
     extraArgs=
     ;;
   Linux)
-    fusermount -u mnt 2>/dev/null || :
+    fusermount -u "$mountpoint" 2>/dev/null || :
     extraArgs=-oauto_unmount
     ;;
   *)
@@ -25,4 +35,6 @@ case $OS in
     exit 2
 esac
 
-exec tabfs -f $extraArgs -odirect_io mnt
+mkdir -p "$mountpoint"
+
+exec tabfs -f $extraArgs -odirect_io "$mountpoint"
