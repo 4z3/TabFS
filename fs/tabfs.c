@@ -460,28 +460,6 @@ static const struct fuse_operations tabfs_oper = {
 };
 
 int main(int argc, char **argv) {
-    (void)argc;
-    if (NULL == getenv("TABFS_MOUNT_DIR")) {
-        setenv("TABFS_MOUNT_DIR", "mnt", 1);
-    }
-
-    freopen("log.txt", "a", stderr);
-    setvbuf(stderr, NULL, _IONBF, 0);
-
-    char killcmd[128];
-    sprintf(killcmd, "pgrep tabfs | grep -v %d | xargs kill -9 2>/dev/null", getpid());
-    system(killcmd);
-
-#if defined(__APPLE__)
-    system("diskutil umount force \"$TABFS_MOUNT_DIR\" >/dev/null");
-#elif defined(__FreeBSD__)
-    system("umount -f \"$TABFS_MOUNT_DIR\" 2>/dev/null");
-#else
-    system("fusermount -u \"$TABFS_MOUNT_DIR\" 2>/dev/null");
-#endif
-
-    system("mkdir -p \"$TABFS_MOUNT_DIR\"");
-
     pthread_t thread;
     int err = pthread_create(&thread, NULL, reader_main, NULL);
     if (err != 0) {
@@ -491,21 +469,5 @@ int main(int argc, char **argv) {
 
     pthread_detach(thread);
 
-    char *fuse_argv[] = {
-        argv[0],
-        "-f",
-#if !defined(__APPLE__)
-#if !defined(__FreeBSD__)
-        "-oauto_unmount",
-#endif
-#endif
-        "-odirect_io",
-        getenv("TABFS_MOUNT_DIR"),
-        NULL,
-    };
-    return fuse_main(
-        (sizeof(fuse_argv)/sizeof(*fuse_argv))-1,
-        (char **)&fuse_argv,
-        &tabfs_oper,
-        NULL);
+    return fuse_main(argc, argv, &tabfs_oper, NULL);
 }

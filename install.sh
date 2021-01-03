@@ -44,7 +44,7 @@ esac
 mkdir -p "$MANIFEST_LOCATION"
 
 APP_NAME="com.rsnous.tabfs"
-EXE_PATH=$(pwd)/fs/tabfs
+EXE_PATH=$(realpath "$(dirname "$0")")/fs/tabfs-wrapper
 
 case "$BROWSER" in
     chrome | chromium | chromebeta | vivaldi)

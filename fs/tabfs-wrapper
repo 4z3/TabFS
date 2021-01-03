@@ -1,0 +1,28 @@
+#! /bin/sh
+set -efu
+
+# allow wrapper to find tabfs executable
+PATH=$(dirname "$0")${PATH:+:$PATH}
+
+pgrep tabfs | grep -v ^$$\$ | xargs kill -9 2>/dev/null || :
+
+OS=$(uname -s)
+case $OS in
+  Darwin)
+    diskutil umount force mnt >/dev/null || :
+    extraArgs=
+    ;;
+  FreeBSD)
+    umount -f mnt 2>/dev/null || :
+    extraArgs=
+    ;;
+  Linux)
+    fusermount -u mnt 2>/dev/null || :
+    extraArgs=-oauto_unmount
+    ;;
+  *)
+    echo "tabfs-wrapper: error: unknown OS: $OS" >&2
+    exit 2
+esac
+
+exec tabfs -f $extraArgs -odirect_io mnt
