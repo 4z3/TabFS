@@ -4,6 +4,19 @@ set -efu
 # allow wrapper to find tabfs executable
 PATH=$(dirname "$0")${PATH:+:$PATH}
 
+if test -n "${TABFS_LOGFILE-}"; then
+  logfile=$TABFS_LOGFILE
+elif test -n "${XDG_CACHE_HOME-}"; then
+  logfile=$XDG_CACHE_HOME/tabfs/log
+elif test -n "${HOME-}"; then
+  logfile=$HOME/.tabfs/log
+else
+  logfile=log.txt
+fi
+
+mkdir -p "$(dirname "$logfile")"
+exec 2>>"$logfile"
+
 if test -n "${TABFS_MOUNTPOINT-}"; then
   mountpoint=$TABFS_MOUNTPOINT
 elif test -n "${XDG_RUNTIME_DIR-}"; then
@@ -37,4 +50,4 @@ esac
 
 mkdir -p "$mountpoint"
 
-exec tabfs -f $extraArgs -odirect_io "$mountpoint"
+exec stdbuf -e0 tabfs -f $extraArgs -odirect_io "$mountpoint"
