@@ -344,6 +344,16 @@ router["/tabs/by-id/*/control"] = {
   },
   async truncate({path, size}) { return {}; }
 };
+router["/tabs/by-id/*/update"] = {
+  // echo '{"active": true}' > mnt/tabs/by-id/1644/update
+  async write({path, buf}) {
+    const tabId = parseInt(pathComponent(path, -2));
+    const updateProperties = JSON.parse(buf);
+    await browser.tabs.update(tabId, updateProperties);
+    return {size: stringToUtf8Array(buf).length};
+  },
+  async truncate({path, size}) { return {}; }
+};
 
 // debugger/ : debugger-API-dependent (Chrome-only)
 (function() {
