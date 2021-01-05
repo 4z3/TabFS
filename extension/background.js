@@ -7,6 +7,7 @@ const unix = {
   EINTR: 4,
   EIO: 5,
   ENXIO: 6,
+  EINVAL: 22,
   ENOTSUP: 45,
   ETIMEDOUT: 110, // FIXME: not on macOS (?)
 
@@ -355,24 +356,74 @@ router["/tabs/by-id/*/control"] = {
   },
   async truncate({path, size}) { return {}; }
 };
-router["/tabs/by-id/*/active"] = {
-  // echo true > mnt/tabs/by-id/1644/active
-  // cat mnt/tabs/by-id/1644/active
-  async read({path, fh, offset, size}) {
-    const tabId = parseInt(pathComponent(path, -2));
-    const tab = await browser.tabs.get(tabId);
-    const buf = (JSON.stringify(tab.active) + '\n').slice(offset, offset + size);
-    return { buf };
-  },
-  async write({path, buf}) {
-    if (buf.trim() === "true") {
+(() => {
+  const defineProperty = ({ assert, get, set }) => {
+    const getData = async path => {
       const tabId = parseInt(pathComponent(path, -2));
-      await browser.tabs.update(tabId, { active: true });
-    }
-    return {size: stringToUtf8Array(buf).length};
-  },
-  async truncate({path, size}) { return {}; }
-};
+      const tab = await browser.tabs.get(tabId);
+      const value = get(tab);
+      return JSON.stringify(value) + "\n";
+    };
+
+    const setData = async (path, buf) => {
+      if (buf.length > 0) {
+        let value;
+        try {
+          value = JSON.parse(buf);
+        } catch (error) {
+          console.error(error);
+        }
+        if (!assert(value)) {
+          console.error("assertion failed", { buf, value });
+          throw new UnixError(unix.EINVAL);
+        }
+        const tabId = parseInt(pathComponent(path, -2));
+        const tab = await browser.tabs.get(tabId);
+        return set(tab, value);
+      } else {
+        return Promise.resolve();
+      }
+    };
+
+    return {
+      async read({path, fh, size, offset}) {
+        return { buf: (await getData(path)).slice(offset, offset + size) };
+      },
+      async write({path, fh, offset, buf}) {
+        if (offset != 0) {
+          throw new UnixError(unix.EINVAL);
+        }
+        await setData(path, buf.trim());
+        return { size: buf.length };
+      },
+      async truncate({path, size}) {
+        return {};
+      }
+    };
+  };
+
+  const isBoolean = value => typeof value === "boolean";
+  const isInteger = Number.isInteger;
+
+  router["/tabs/by-id/*/active"] = defineProperty({
+    assert: isBoolean,
+    get: tab => tab.active,
+    set: (tab, active) => browser.tabs.update(tab.id, {active}),
+  });
+
+  router["/tabs/by-id/*/index"] = defineProperty({
+    assert: isInteger,
+    get: tab => tab.index,
+    set: (tab, index) => browser.tabs.move(tab.id, {index}),
+  });
+
+  router["/tabs/by-id/*/discard"] = defineProperty({
+    assert: isBoolean,
+    get: tab => tab.discarded,
+    set: (tab, _) => browser.tabs.discard(tab.id),
+  });
+
+})();
 
 // debugger/ : debugger-API-dependent (Chrome-only)
 (function() {
