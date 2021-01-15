@@ -8,19 +8,19 @@ OSXFUSE_ROOT = /usr/local
 FREEBSD_ROOT = /usr/local
 
 CFLAGS ?= -O2
-CFLAGS_EXTRA = -DFUSE_USE_VERSION=26 -D_FILE_OFFSET_BITS=64 -Wall -Wextra -Wno-unused-result -g
+CFLAGS_EXTRA = -DFUSE_USE_VERSION=30 -D_FILE_OFFSET_BITS=64 -Wall -Wextra -Wno-unused-result -g
 
 ifeq ($(shell uname -s),Linux)
 	CFLAGS += $(CFLAGS_EXTRA)
-	LIBS = -lfuse -pthread
+	LIBS = -lfuse3 -pthread
 endif
 ifeq ($(shell uname -s),Darwin)
 	CFLAGS += -I$(OSXFUSE_ROOT)/include -L$(OSXFUSE_ROOT)/lib -D_DARWIN_USE_64_BIT_INODE $(CFLAGS_EXTRA)
-	LIBS = -lfuse
+	LIBS = -lfuse3
 endif
 ifeq ($(shell uname -s),FreeBSD)
 	CFLAGS += -L$(FREEBSD_ROOT)/lib -I$(FREEBSD_ROOT)/include $(CFLAGS_EXTRA)
-	LIBS = -lfuse -pthread
+	LIBS = -lfuse3 -pthread
 endif
 
 all: $(TARGETS)

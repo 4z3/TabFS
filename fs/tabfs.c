@@ -13,7 +13,7 @@
 #include <stdint.h>
 #include <assert.h>
 
-#include <fuse.h>
+#include <fuse3/fuse.h>
 
 #include "vendor/frozen.h"
 #include "vendor/frozen.c"
@@ -213,12 +213,18 @@ static int count_fmt_args(const char *s) {
         } \
     } while (0)
 
-static int tabfs_getattr(const char *path, struct stat *stbuf) {
+static int tabfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {
     char *rdata;
     size_t rsize;
-    exchange_json(&rdata, &rsize,
-        "op: %Q, path: %Q",
-        "getattr", path);
+    if (fi != NULL) {
+        exchange_json(&rdata, &rsize,
+            "op: %Q, path: %Q, fh: %llu",
+            "getattr", path, fi->fh);
+    } else {
+        exchange_json(&rdata, &rsize,
+            "op: %Q, path: %Q",
+            "getattr", path);
+    }
 
     memset(stbuf, 0, sizeof(struct stat));
     parse_and_free_response(rdata, rsize,
@@ -339,8 +345,10 @@ static int tabfs_readdir(const char *path,
                          void *buf,
                          fuse_fill_dir_t filler,
                          off_t offset,
-                         struct fuse_file_info *fi) {
+                         struct fuse_file_info *fi,
+                         enum fuse_readdir_flags flags) {
     (void)fi;
+    (void)flags;
 
     char *rdata;
     size_t rsize;
@@ -353,7 +361,7 @@ static int tabfs_readdir(const char *path,
         char entry[t.len+1];
         memcpy(entry, t.ptr, t.len);
         entry[t.len] = '\0';
-        filler(buf, entry, NULL, 0);
+        filler(buf, entry, NULL, 0, 0);
     }
 
     parse_and_free_response(rdata, rsize, "");
@@ -373,12 +381,18 @@ static int tabfs_releasedir(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-static int tabfs_truncate(const char *path, off_t size) {
+static int tabfs_truncate(const char *path, off_t size, struct fuse_file_info *fi) {
     char *rdata;
     size_t rsize;
-    exchange_json(&rdata, &rsize,
-        "op: %Q, path: %Q, size: %lld",
-        "truncate", path, size);
+    if (fi != NULL) {
+        exchange_json(&rdata, &rsize,
+            "op: %Q, path: %Q, size: %lld, fh: %llu",
+            "truncate", path, size, fi->fh);
+    } else {
+        exchange_json(&rdata, &rsize,
+            "op: %Q, path: %Q, size: %lld",
+            "truncate", path, size);
+    }
 
     parse_and_free_response(rdata, rsize, "");
 
@@ -432,8 +446,9 @@ static int tabfs_create(const char *path, mode_t mode, struct fuse_file_info *fi
         } \
     } while (0)
 
-static void *tabfs_init(struct fuse_conn_info *conn) {
+static void *tabfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
     want_capability(conn, FUSE_CAP_ATOMIC_O_TRUNC);
+    cfg->direct_io = 1;
     return NULL;
 }
 
@@ -499,7 +514,6 @@ int main(int argc, char **argv) {
         "-oauto_unmount",
 #endif
 #endif
-        "-odirect_io",
         getenv("TABFS_MOUNT_DIR"),
         NULL,
     };
